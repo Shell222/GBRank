@@ -2,12 +2,13 @@
 import regression_tree
 import copy
 import numpy as np
+import math
 
 class GBRank(object):
     
     max_depth = 3
     feature_ratio = 0.7
-    min_leaves = 50 
+    min_leaves = 50
     size_param = 0
 
     def __init__(self, data, iterations, margin, learning_ratio):
@@ -20,6 +21,7 @@ class GBRank(object):
 
         # data add last col as the index
         # dataset is dict, key: query, val: feature...label, index
+        print(len(data))
         dataset = dict()
         row_num = 0
         for line in data:
@@ -49,6 +51,7 @@ class GBRank(object):
         model_list = list()
         for i in range(self.iterations):
             previous_prediction = self.predict(data)
+            print(self.ndcg(data))
             next_dataset = list() # Only contains the inversed pairs
             for key, val in dataset.items():
                 gradient = self.get_gradient(val, previous_prediction)
@@ -88,6 +91,32 @@ class GBRank(object):
                     gradient[idx_j][0] -= val_j - val_i + self.margin
                     gradient[idx_j][1] += 1
         return gradient
+    
+    def ndcg(self, data):
+        dataset = dict()
+        row_num = 0
+        for line in data:
+            line += [row_num]
+            row_num += 1
+            if line[0] not in dataset:
+                dataset[line[0]] = list()
+            dataset[line[0]].append(line[1:])
+        
+        prediction = self.predict(data)
+        sum_ndcg = 0
+        for _, val in dataset.items():
+            val.sort(key=lambda i: -prediction[i[-1]])
+            dcg = 0
+            for i in range(len(val)):
+                dcg += 2**val[i][-2] / math.log2(i + 2)
+            val.sort(key=lambda i: -i[-2])
+            idcg = 0
+            for i in range(len(val)):
+                idcg += 2**val[i][-2] / math.log2(i + 2)
+            sum_ndcg += dcg / idcg
+        return sum_ndcg / len(dataset)
+
+        
 
 def read_file(filename):
     """
