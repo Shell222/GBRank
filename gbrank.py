@@ -1,4 +1,3 @@
-
 import regression_tree
 import copy
 import numpy as np
@@ -6,9 +5,9 @@ import math
 
 class GBRank(object):
     
-    max_depth = 3
+    max_depth = 5
     feature_ratio = 0.7
-    min_leaves = 50
+    min_leaves = 2
     size_param = 0
 
     def __init__(self, data, iterations, margin, learning_ratio):
@@ -34,7 +33,7 @@ class GBRank(object):
         for _, val in dataset.items():
             val.sort(key=lambda i: -i[-2])
         self.model_list = []
-        self.model_list = self.train(dataset, data)
+        self.train(dataset, data)
 
     def predict(self, dataset):
         prediction = [0 for i in range(len(dataset))]
@@ -44,25 +43,27 @@ class GBRank(object):
             for model in self.model_list:
                 prediction[i[-1]] += model.predict(i[0: -2])
             prediction[i[-1]] /= len(self.model_list)
-        # print(prediction)
         return prediction
 
     def train(self, dataset, data):
-        model_list = list()
         for i in range(self.iterations):
             previous_prediction = self.predict(data)
+            # print(previous_prediction)
             print(self.ndcg(data))
             next_dataset = list() # Only contains the inversed pairs
             for key, val in dataset.items():
                 gradient = self.get_gradient(val, previous_prediction)
                 for key, val in gradient.items():
+                    # format source: features: label: count
                     next_row = copy.deepcopy(data[key])
-                    next_row[-2] += self.learning_ratio * val[0] / val[1]
-                    next_dataset.append(next_row[1: -1]) # first col is query, final col is index
+                    next_row = next_row[1:-1]
+                    next_row[-1] += self.learning_ratio * val[0] / val[1]
+                    next_dataset.append(next_row) # first col is query, final col is index
             next_dataset = np.array(next_dataset)
+            # print(next_dataset[0])
             tree = regression_tree.fit(next_dataset, self.max_depth, self.feature_ratio, self.min_leaves, self.size_param)
-            model_list.append(tree)
-        return model_list
+            self.model_list.append(tree)
+        
     
     def get_gradient(self, single_query_dataset, previous_prediction):
 
@@ -94,10 +95,7 @@ class GBRank(object):
     
     def ndcg(self, data):
         dataset = dict()
-        row_num = 0
         for line in data:
-            line += [row_num]
-            row_num += 1
             if line[0] not in dataset:
                 dataset[line[0]] = list()
             dataset[line[0]].append(line[1:])
@@ -116,8 +114,6 @@ class GBRank(object):
             sum_ndcg += dcg / idcg
         return sum_ndcg / len(dataset)
 
-        
-
 def read_file(filename):
     """
     special function to read test file
@@ -127,6 +123,7 @@ def read_file(filename):
         for line in f.readlines()[1:1000]:
             row = line.split('\t')
             line_data = [row[1]] + [float(i) for i in row[2: -1]] + [float(row[0])]
+            # data format source: features: label
             data.append(line_data)
     return data
 
@@ -135,4 +132,4 @@ if __name__ == '__main__':
     # data = read_file('./testdata.tsv')
     data = read_file('../../base_train_file')
 
-    gb = GBRank(data, 10, 0.3, 1)
+    gb = GBRank(data, 5, 0.3, 1)
