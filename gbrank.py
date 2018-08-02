@@ -30,6 +30,8 @@ class GBRank(object):
                 dataset[line[0]] = list()
             dataset[line[0]].append(line[1:])
 
+        self.testData = copy.deepcopy(data)
+
         for _, val in dataset.items():
             val.sort(key=lambda i: -i[-2])
         self.model_list = []
@@ -41,7 +43,7 @@ class GBRank(object):
             return prediction
         for i in dataset:
             for model in self.model_list:
-                prediction[i[-1]] += model.predict(i[0: -2])
+                prediction[i[-1]] += model.predict(i[1: -1])
             prediction[i[-1]] /= len(self.model_list)
         return prediction
 
@@ -49,7 +51,7 @@ class GBRank(object):
         for i in range(self.iterations):
             previous_prediction = self.predict(data)
             # print(previous_prediction)
-            print(self.ndcg(data))
+            print(self.ndcg())
             next_dataset = list() # Only contains the inversed pairs
             for key, val in dataset.items():
                 gradient = self.get_gradient(val, previous_prediction)
@@ -61,6 +63,7 @@ class GBRank(object):
                     next_dataset.append(next_row) # first col is query, final col is index
             next_dataset = np.array(next_dataset)
             # print(next_dataset[0])
+            # print(next_dataset)
             tree = regression_tree.fit(next_dataset, self.max_depth, self.feature_ratio, self.min_leaves, self.size_param)
             self.model_list.append(tree)
         
@@ -93,7 +96,8 @@ class GBRank(object):
                     gradient[idx_j][1] += 1
         return gradient
     
-    def ndcg(self, data):
+    def ndcg(self):
+        data = self.testData
         dataset = dict()
         for line in data:
             if line[0] not in dataset:
@@ -120,16 +124,26 @@ def read_file(filename):
     """
     data = list()
     with open(filename, mode='r', encoding='gbk', errors='ignore') as f:
-        for line in f.readlines()[1:1000]:
+        for line in f.readlines()[1:100]:
             row = line.split('\t')
             line_data = [row[1]] + [float(i) for i in row[2: -1]] + [float(row[0])]
             # data format source: features: label
             data.append(line_data)
     return data
 
+def read_IPS_file(filename, nlines):
+    data = list()
+    from itertools import islice
+    with open(filename, 'r') as f:
+        for line in islice(f, nlines):
+            row = line.split(',')
+            line_data = [row[1]] + [float(i) for i in row[3: -1]] + [float(row[-1])]
+            data.append(line_data)
+    return data
+
 if __name__ == '__main__':
 
     # data = read_file('./testdata.tsv')
-    data = read_file('../../base_train_file')
+    data = read_IPS_file('C:/Users/t-qixu/Desktop/ActiveFeaturesV2.csv', 10000)
 
-    gb = GBRank(data, 5, 0.3, 1)
+    gb = GBRank(data, 10, 0.3, 1)

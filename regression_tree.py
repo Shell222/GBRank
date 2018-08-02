@@ -34,6 +34,8 @@ class Tree(object):
         if node.is_leave:
             return node.value
         index = node.feature_index
+        if type(data[index]) == type(""):
+            print(data)
         if data[index] < node.split_point:
             node = node.left
         else:
