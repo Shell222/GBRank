@@ -4,23 +4,32 @@ import numpy as np
 import math
 
 class GBRank(object):
-    
+    # parameter for regression tree training
     max_depth = 3
     feature_ratio = 0.7
     min_leaves = 2
     size_param = 0
 
     def __init__(self, data, iterations, margin, learning_ratio, emphasize=[]):
+        """Constructor
+        
+        Arguments:
+            data {list} -- dataset where first col is group of query group and last col is label, and mids are document features
+            iterations {int} -- How many trees to boost
+            margin {double} -- Parameter for hinge loss function
+            learning_ratio {double} -- ratio of residual weight
+        
+        Keyword Arguments:
+            emphasize {list} -- parameter for regression tree feature emphasize (default: {[]})
         """
-        data is first col: query, final col: label
-        """
+
         self.iterations = iterations
         self.margin = margin
         self.learning_ratio = learning_ratio
         self.emphasize = emphasize
 
-        # data add last col as the index
-        # dataset is dict, key: query, val: feature...label, index
+        # data: add the index as last col 
+        # dataset: is dict, key: query, val: feature...label index
         print(len(data))
         dataset = dict()
         row_num = 0
@@ -39,6 +48,15 @@ class GBRank(object):
         self.train(dataset, data)
 
     def predict(self, dataset):
+        """Prediction a dataset using this the model
+        
+        Arguments:
+            dataset {list} -- dataset to be predicted, last col is index
+        
+        Returns:
+            list -- list of scores for each query and corresponding documents
+        """
+
         prediction = [0 for i in range(len(dataset))]
         if len(self.model_list) == 0:
             return prediction
@@ -49,7 +67,14 @@ class GBRank(object):
         return prediction
 
     def train(self, dataset, data):
-        for i in range(self.iterations):
+        """Train the model
+        
+        Arguments:
+            dataset {dict} -- dict where key is query
+            data {list} -- data where index is appended
+        """
+
+        for _ in range(self.iterations):
             previous_prediction = self.predict(data)
             # print(previous_prediction)
             # print(self.ndcg())
@@ -57,19 +82,26 @@ class GBRank(object):
             for key, val in dataset.items():
                 gradient = self.get_gradient(val, previous_prediction)
                 for key, val in gradient.items():
-                    # format source: features: label: count
+                    # format: (source: features: label: count)
                     next_row = copy.deepcopy(data[key])
                     next_row = next_row[1:-1]
                     next_row[-1] += self.learning_ratio * val[0] / val[1]
                     next_dataset.append(next_row) # first col is query, final col is index
             next_dataset = np.array(next_dataset)
-            # print(next_dataset[0])
-            # print(next_dataset)
             tree = regression_tree.fit(next_dataset, self.max_depth, self.feature_ratio, self.min_leaves, self.size_param, self.emphasize)
             self.model_list.append(tree)
         
     
     def get_gradient(self, single_query_dataset, previous_prediction):
+        """Get the gradient for a single query_dataset and previous prediction
+        
+        Arguments:
+            single_query_dataset {list} -- val int the dataset dict
+            previous_prediction {list} -- scores for all data
+        
+        Returns:
+            dict -- gradient where key is index, value is a list, list[0] is the cumulative gradient, list[1] is how many residual added
+        """
 
         # sort according to previous cumulative result
         # query_predict_dataset = copy.deepcopy(single_query_dataset)
@@ -98,6 +130,18 @@ class GBRank(object):
         return gradient
     
     def ndcg(self, data, noRow=False):
+        """Calculate the ndcg
+        
+        Arguments:
+            data {list} -- dataset
+        
+        Keyword Arguments:
+            noRow {bool} -- whether the index is added as the last column  (default: {False})
+        
+        Returns:
+            double -- NDCG
+        """
+
         if noRow:
             row_num = 0
             for line in data:
@@ -137,6 +181,16 @@ def read_file(filename):
     return data
 
 def read_IPS_file(filename, nlines):
+    """read the IPS file
+    
+    Arguments:
+        filename {str} -- file name
+        nlines {int} --line to read
+    
+    Returns:
+        train dataset and test dataset
+    """
+
     data = list()
     test = list()
     bound = 0.9 * nlines
@@ -158,13 +212,11 @@ if __name__ == '__main__':
     # data = read_file('./testdata.tsv')
     data, test = read_IPS_file('../PinUnpin (1).csv', 20000)
     print(len(data[0]))
-
+    # en is list of number from (0,1], the less the more weight
     en = [1 for i in range(157)]
-    en[-1] = 1
-    # for i in emphasize:
-    #     en.append(1 + 0.1 * i)
 
-    gb = GBRank(data, 8, 0.3, 1, en)
+    gb = GBRank(data, 5, 0.3, 1, en)
+    # w is the feature weight from
     w = np.zeros(len(gb.model_list[0].feature_weight))
     for i in gb.model_list:
         w += i.feature_weight

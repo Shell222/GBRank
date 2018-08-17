@@ -158,6 +158,7 @@ class Tree(object):
                 best_lt_dataset = lt_dataset
         if feature_index != None:
             self.feature_weight[feature_index] += 1
+
         return feature_index, min_mean, best_lt_dataset, best_gt_dataset
     """
     :param dataset: 2D numpy array, where the last column is label
