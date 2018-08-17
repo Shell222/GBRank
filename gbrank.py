@@ -5,18 +5,19 @@ import math
 
 class GBRank(object):
     
-    max_depth = 5
+    max_depth = 3
     feature_ratio = 0.7
     min_leaves = 2
     size_param = 0
 
-    def __init__(self, data, iterations, margin, learning_ratio):
+    def __init__(self, data, iterations, margin, learning_ratio, emphasize=[]):
         """
         data is first col: query, final col: label
         """
         self.iterations = iterations
         self.margin = margin
         self.learning_ratio = learning_ratio
+        self.emphasize = emphasize
 
         # data add last col as the index
         # dataset is dict, key: query, val: feature...label, index
@@ -30,7 +31,7 @@ class GBRank(object):
                 dataset[line[0]] = list()
             dataset[line[0]].append(line[1:])
 
-        self.testData = copy.deepcopy(data)
+        # self.testData = copy.deepcopy(data)
 
         for _, val in dataset.items():
             val.sort(key=lambda i: -i[-2])
@@ -51,7 +52,7 @@ class GBRank(object):
         for i in range(self.iterations):
             previous_prediction = self.predict(data)
             # print(previous_prediction)
-            print(self.ndcg())
+            # print(self.ndcg())
             next_dataset = list() # Only contains the inversed pairs
             for key, val in dataset.items():
                 gradient = self.get_gradient(val, previous_prediction)
@@ -64,7 +65,7 @@ class GBRank(object):
             next_dataset = np.array(next_dataset)
             # print(next_dataset[0])
             # print(next_dataset)
-            tree = regression_tree.fit(next_dataset, self.max_depth, self.feature_ratio, self.min_leaves, self.size_param)
+            tree = regression_tree.fit(next_dataset, self.max_depth, self.feature_ratio, self.min_leaves, self.size_param, self.emphasize)
             self.model_list.append(tree)
         
     
@@ -96,8 +97,12 @@ class GBRank(object):
                     gradient[idx_j][1] += 1
         return gradient
     
-    def ndcg(self):
-        data = self.testData
+    def ndcg(self, data, noRow=False):
+        if noRow:
+            row_num = 0
+            for line in data:
+                line += [row_num]
+                row_num += 1
         dataset = dict()
         for line in data:
             if line[0] not in dataset:
@@ -133,17 +138,35 @@ def read_file(filename):
 
 def read_IPS_file(filename, nlines):
     data = list()
+    test = list()
+    bound = 0.9 * nlines
+    count = 1
     from itertools import islice
     with open(filename, 'r') as f:
         for line in islice(f, nlines):
             row = line.split(',')
             line_data = [row[1]] + [float(i) for i in row[3: -1]] + [float(row[-1])]
-            data.append(line_data)
-    return data
+            if count < bound:
+                data.append(line_data)
+            else:
+                test.append(line_data)
+            count += 1
+    return data, test
 
 if __name__ == '__main__':
-
+    
     # data = read_file('./testdata.tsv')
-    data = read_IPS_file('C:/Users/t-qixu/Desktop/ActiveFeaturesV2.csv', 10000)
+    data, test = read_IPS_file('../PinUnpin (1).csv', 20000)
+    print(len(data[0]))
 
-    gb = GBRank(data, 10, 0.3, 1)
+    en = [1 for i in range(157)]
+    en[-1] = 1
+    # for i in emphasize:
+    #     en.append(1 + 0.1 * i)
+
+    gb = GBRank(data, 8, 0.3, 1, en)
+    w = np.zeros(len(gb.model_list[0].feature_weight))
+    for i in gb.model_list:
+        w += i.feature_weight
+    print(w)
+    print(gb.ndcg(test, True))

@@ -18,14 +18,17 @@ class TreeNode(object):
         self.is_leave = False
         self.value = None
         self.dataset = dataset
+        
 
 
 class Tree(object):
-    def __init__(self, dataset, max_depth, feature_ratio, min_leaves, size_param):
+    def __init__(self, dataset, max_depth, feature_ratio, min_leaves, size_param, emphasize=[]):
         self.max_depth = max_depth
         self.feature_ratio = feature_ratio
         self.min_leaves = min_leaves
         self.size_param = size_param
+        self.feature_weight = [0 for i in range(dataset[0].size - 1)]   
+        self.emphasize = emphasize     
         self.root = self.create_tree(dataset)
 
     def predict(self, data, node=None):
@@ -75,22 +78,25 @@ class Tree(object):
                 continue
 
             var = lt_dataset[:, -1].var() + gt_dataset[:, -1].var()
+            if len(self.emphasize) != 0:
+                var *= self.emphasize[index]
             if var < min_var:
                 min_mean = mean
                 feature_index = index
                 min_var = var
                 best_gt_dataset = gt_dataset
                 best_lt_dataset = lt_dataset
-
+        if feature_index != None:
+            self.feature_weight[feature_index] += 1
         return feature_index, min_mean, best_lt_dataset, best_gt_dataset
 
 
-def fit(dataset, max_depth, feature_ratio, min_leaves, size_param):
+def fit(dataset, max_depth, feature_ratio, min_leaves, size_param, emphasize):
     """
     :param dataset: 2D numpy array, where the last column is label
     :return: a trained model using regression tree
     """
-    tree = Tree(dataset, max_depth, feature_ratio, min_leaves, size_param)
+    tree = Tree(dataset, max_depth, feature_ratio, min_leaves, size_param, emphasize)
     return tree
 
 
@@ -107,5 +113,5 @@ if __name__ == '__main__':
     file = 'Jain_373_2.txt'
     dataset = [[float(j) for j in i.rstrip().split(',')] for i in open(file).readlines()]
     dataset = numpy.array(dataset)
-    tree = fit(dataset, 5, 1, 1, 0)
+    tree = fit(dataset, 5, 1, 1, 0, [])
     print(accuracy(tree, dataset))
